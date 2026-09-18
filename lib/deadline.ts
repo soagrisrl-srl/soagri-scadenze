@@ -1,0 +1,3 @@
+import { addDays, addMonths, addWeeks, addYears, differenceInCalendarDays, parseISO } from "date-fns";
+export function urgency(date:string){const n=differenceInCalendarDays(parseISO(date),new Date());return n<0?"overdue":n===0?"today":n<=3?"soon":n<=7?"week":"later"}
+export function nextDate(date:string,rule:string){const d=parseISO(date);if(rule==="WEEKLY")return addWeeks(d,1);if(rule==="MONTHLY")return addMonths(d,1);if(rule==="QUARTERLY")return addMonths(d,3);if(rule==="YEARLY")return addYears(d,1);const [kind,n]=rule.split(":");if(kind==="DAYS")return addDays(d,+n);if(kind==="WEEKS")return addWeeks(d,+n);if(kind==="MONTHS")return addMonths(d,+n);if(kind==="YEARS")return addYears(d,+n);return null}

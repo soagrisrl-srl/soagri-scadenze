@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum Priority {
+  NORMAL
+  IMPORTANT
+  URGENT
+}
+
+enum Status {
+  TODO
+  IN_PROGRESS
+  WAITING
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  passwordHash String
+  role Role @default(VIEWER)
+  color String @default("#176b45")
+  assigned DeadLine[] @relation("Assignee")
+  auditLogs AuditLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DeadLine {
+  id String @id @default(cuid())
+  title String
+  description String @default("")
+  dueDate DateTime
+  dueTime String?
+  priority Priority @default(NORMAL)
+  status Status @default(TODO)
+  category String
+  assigneeId String
+  assignee User @relation("Assignee", fields: [assigneeId], references: [id])
+  notifyIds String[]
+  recurrence String @default("NONE")
+  reminders Int[]
+  notes String @default("")
+  waitingFor String @default("")
+  requireRead Boolean @default(false)
+  checklist Json @default("[]")
+  links String[]
+  takenAt DateTime?
+  completedAt DateTime?
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  auditLogs AuditLog[]
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+  deadlineId String
+  deadline DeadLine @relation(fields: [deadlineId], references: [id], onDelete: Cascade)
+  actorId String?
+  actor User? @relation(fields: [actorId], references: [id])
+  action String
+  detail String?
+  createdAt DateTime @default(now())
+}
+
+model PushSubscription {
+  id String @id @default(cuid())
+  userId String
+  endpoint String @unique
+  p256dh String
+  auth String
+  enabled Boolean @default(true)
+  createdAt DateTime @default(now())
+}
+
+model NotificationLog {
+  id String @id @default(cuid())
+  userId String?
+  deadlineId String?
+  channel String
+  status String
+  message String
+  createdAt DateTime @default(now())
+}
