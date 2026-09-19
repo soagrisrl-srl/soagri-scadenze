@@ -34,6 +34,8 @@ model User {
   passwordHash String
   role Role @default(VIEWER)
   color String @default("#176b45")
+  active Boolean @default(true)
+  canManageEvents Boolean @default(false)
   assigned DeadLine[] @relation("Assignee")
   auditLogs AuditLog[]
   createdAt DateTime @default(now())

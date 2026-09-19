@@ -15,18 +15,29 @@ Aprire `http://localhost:3000`. Senza configurazione database l'app usa automati
 
 ## Variabili ambiente
 
-Copiare `.env.example` in `.env.local`. Non commettere mai questo file su GitHub. `AUTH_SECRET` deve essere una stringa casuale lunga. `ADMIN_PASSWORD` stabilisce la password temporanea comune usata dalla V1; per la produzione impostarne una robusta.
+Copiare `.env.example` in `.env.local`. Non commettere mai questo file su GitHub. `AUTH_SECRET` deve essere una stringa casuale lunga. `ADMIN_PASSWORD` resta la password temporanea degli account iniziali finché un amministratore non assegna loro password individuali. I nuovi utenti ricevono sempre una password personale dal form.
 
 ## Database PostgreSQL
 
 In locale non è obbligatorio configurarlo. In produzione impostare `DATABASE_URL`: l'app passerà automaticamente dal file locale a PostgreSQL tramite Prisma.
 
+Database PostgreSQL **nuovo**:
+
 ```bash
 npm run db:generate
-npm run db:push       # prima configurazione
-npm run db:migrate    # migrazioni versionate successive
+npm run db:migrate
 npm run db:seed
 ```
+
+Se il database PostgreSQL era già stato creato con `db:push` prima dell'introduzione delle migrazioni, registrare una sola volta lo schema precedente e applicare l'aggiornamento senza cancellare dati:
+
+```bash
+npx prisma migrate resolve --applied 20260918000000_initial
+npm run db:migrate
+npm run db:seed
+```
+
+Se il database contiene già entrambi i nuovi campi `active` e `canManageEvents`, registrare anche `20260919120000_user_permissions` come applicata invece di eseguirla di nuovo.
 
 Il modello comprende utenti, scadenze, audit log, sottoscrizioni push e log notifiche. I dati demo locali sono separati e non vengono copiati automaticamente in produzione.
 
@@ -44,7 +55,7 @@ npm run build
 1. Creare un repository vuoto nell'account GitHub So.Agri e caricare questa cartella.
 2. In Vercel scegliere **Add New Project** e importare il repository.
 3. Aggiungere `DATABASE_URL`, `AUTH_SECRET`, `ADMIN_EMAIL` e `ADMIN_PASSWORD` nelle variabili del progetto.
-4. Eseguire una volta `npm run db:push` contro il database PostgreSQL scelto.
+4. Eseguire una volta le migrazioni e il seed secondo il caso indicato sopra.
 5. Distribuire. Il comando di build è già compatibile con Vercel.
 
 ## Notifiche e PWA
@@ -58,7 +69,7 @@ Dopo il login aprire **TV**. Il pulsante a destra attiva lo schermo intero. La v
 ## Utenti e ruoli
 
 - **Admin**: configurazione e gestione completa.
-- **Gestore**: crea, modifica, prende in carico, rimanda e completa.
+- **Gestore**: crea, modifica, prende in carico, rimanda e completa se ha il permesso di gestione scadenze.
 - **Visualizzatore**: sola consultazione.
 
-Gli utenti iniziali demo sono Domenico, Flavio e Giuseppe. La struttura non dipende dai loro nomi ed è pronta per una futura gestione utenti completa. Per questa V1 l'accesso usa la password bootstrap da ambiente; prima di aprire l'app a Internet è consigliato collegare Auth.js o un provider aziendale mantenendo i ruoli già presenti.
+Gli utenti iniziali sono Domenico, Giuseppe, Flavio D e Flavio G, distinti. L'ID del precedente account Flavio rimane associato a Flavio D, così le assegnazioni esistenti restano valide. Tutti e quattro possono gestire le scadenze. L'admin trova **Utenti e permessi** in Impostazioni: può creare utenti, cambiare ruolo, assegnare il permesso di gestione, disattivare account e impostare password individuali. Gli account disattivati mantengono lo storico ma non possono accedere. I nuovi utenti non ricevono la password bootstrap.
