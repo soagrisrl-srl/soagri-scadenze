@@ -73,3 +73,22 @@ Dopo il login aprire **TV**. Il pulsante a destra attiva lo schermo intero. La v
 - **Visualizzatore**: sola consultazione.
 
 Gli utenti iniziali sono Domenico, Giuseppe, Flavio D e Flavio G, distinti. L'ID del precedente account Flavio rimane associato a Flavio D, così le assegnazioni esistenti restano valide. Tutti e quattro possono gestire le scadenze. L'admin trova **Utenti e permessi** in Impostazioni: può creare utenti, cambiare ruolo, assegnare il permesso di gestione, disattivare account e impostare password individuali. Gli account disattivati mantengono lo storico ma non possono accedere. I nuovi utenti non ricevono la password bootstrap.
+
+## Terminale e importazione JSON
+
+Senza `DATABASE_URL` i comandi usano il database locale. Impostando `DATABASE_URL` usano PostgreSQL: ogni scrittura richiede `--prod` e `--actor`, mostra un avviso di produzione e richiede di digitare `CONFERMO` (oppure `--yes` per automazione intenzionale). Il dry-run non scrive e non richiede conferma. Non inserire credenziali nei comandi o nel repository.
+
+```bash
+npm run scadenza:add -- --titolo "Invio dichiarazione" --data 2026-10-20 --responsabile "Domenico" --priorita IMPORTANT --categoria "Amministrazione" --preavvisi 7,3,1 --actor "Domenico"
+npm run scadenze:import -- examples/scadenze-import.example.json --dry-run --actor "Domenico"
+npm run scadenze:import -- mio-file.json --actor "Domenico"
+npm run scadenze:list -- --responsabile "Giuseppe" --da 2026-09-01 --a 2026-12-31 --non-archiviate
+npm run scadenza:update -- --id ID --data 2026-11-10 --responsabile "Giuseppe" --actor "Domenico"
+npm run scadenza:complete -- --id ID --actor "Domenico"
+npm run scadenza:archive -- --id ID --actor "Domenico"
+npm run scadenza:unarchive -- --id ID --actor "Domenico"
+```
+
+L'import accetta un array JSON oppure `{ "deadlines": [...] }`. Campi principali: `title`, `dueDate` oppure `dateRange:{"start":"YYYY-MM-DD","end":"YYYY-MM-DD"}`, `assignee` (nome o ID), `priority`, `category`, `reminders`, `notes`, `waitingFor`, `dependsOn` (ID esistenti), `workingDayAdjustment` (`NONE`, `PREVIOUS_WORKDAY`, `NEXT_WORKDAY`), `recurrence:{"every":2,"unit":"YEAR","anchor":"COMPLETION_DATE"}`. Sono supportati anche `description`, `notify` (nomi utenti), `requireRead`, `checklist`, `links` e `status`. Le voci sono validate tutte prima della scrittura; un errore blocca l'intero import. I possibili duplicati (titolo, data finale, responsabile) richiedono conferma.
+
+Le vecchie ricorrenze restano valide. La regola mensile/annuale usa la data programmata per default; `COMPLETION_DATE` usa invece la data effettiva. Se il giorno del mese non esiste nel mese/anno successivo, si usa l'ultimo giorno valido (es. 29 febbraio → 28 febbraio); le occorrenze successive partono dalla data precedente già calcolata. Le festività italiane nazionali, Pasqua e Pasquetta sono considerate oltre ai fine settimana. L'aggiustamento del giorno lavorativo si applica alla data generata; per un periodo, si applica alla sua data finale e l'inizio si sposta della stessa differenza. Le scadenze completate sono mostrate nell'archivio dopo 30 giorni per default; il valore è modificabile nelle Impostazioni (`-1` disabilita). Il ripristino manuale esenta quella scadenza dall'archiviazione automatica successiva.

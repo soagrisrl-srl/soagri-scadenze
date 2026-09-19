@@ -47,6 +47,8 @@ model DeadLine {
   title String
   description String @default("")
   dueDate DateTime
+  startDate DateTime?
+  endDate DateTime?
   dueTime String?
   priority Priority @default(NORMAL)
   status Status @default(TODO)
@@ -55,6 +57,9 @@ model DeadLine {
   assignee User @relation("Assignee", fields: [assigneeId], references: [id])
   notifyIds String[]
   recurrence String @default("NONE")
+  recurrenceAnchor String @default("DUE_DATE")
+  workingDayAdjustment String @default("NONE")
+  dependsOnIds String[] @default([])
   reminders Int[]
   notes String @default("")
   waitingFor String @default("")
@@ -64,9 +69,16 @@ model DeadLine {
   takenAt DateTime?
   completedAt DateTime?
   deletedAt DateTime?
+  archivedAt DateTime?
+  archiveExempt Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   auditLogs AuditLog[]
+}
+
+model AppSetting {
+  key String @id
+  value String
 }
 
 model AuditLog {

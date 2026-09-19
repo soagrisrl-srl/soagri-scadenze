@@ -1,0 +1,14 @@
+{
+  "deadlines": [
+    {"title":"Invio dichiarazione trimestrale","dueDate":"2026-10-20","assignee":"Domenico","priority":"IMPORTANT","category":"Amministrazione","reminders":[7,3,1],"notes":"Controllare i dati","notify":["Giuseppe"],"checklist":[{"id":"check-1","text":"Verificare allegati","done":false}]},
+    {"title":"Rinnovo annuale autorizzazione","dueDate":"2027-09-30","assignee":"Giuseppe","recurrence":{"every":1,"unit":"YEAR","anchor":"DUE_DATE"}},
+    {"title":"Controllo biennale impianto","dueDate":"2028-06-15","assignee":"Flavio D","recurrence":{"every":2,"unit":"YEAR","anchor":"DUE_DATE"}},
+    {"title":"Verifica triennale sicurezza","dueDate":"2029-06-15","assignee":"Flavio G","recurrence":{"every":3,"unit":"YEAR","anchor":"DUE_DATE"}},
+    {"title":"Manutenzione semestrale","dueDate":"2027-03-12","assignee":"Domenico","recurrence":{"every":6,"unit":"MONTH","anchor":"COMPLETION_DATE"}},
+    {"title":"Attendere conferma Studio Inglese","dueDate":"2027-04-12","assignee":"Giuseppe","waitingFor":"Studio Inglese","status":"WAITING"},
+    {"title":"Inviare pratica dopo ricezione documento","dueDate":"2027-04-15","assignee":"Giuseppe","dependsOn":["d1"]},
+    {"title":"Attività durante settembre","dateRange":{"start":"2027-09-01","end":"2027-09-30"},"assignee":"Flavio D"},
+    {"title":"Consegna anticipata se festivo","dueDate":"2027-12-25","assignee":"Flavio G","workingDayAdjustment":"PREVIOUS_WORKDAY"},
+    {"title":"Consegna posticipata se festivo","dueDate":"2027-12-26","assignee":"Domenico","workingDayAdjustment":"NEXT_WORKDAY"}
+  ]
+}
