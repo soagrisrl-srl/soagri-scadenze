@@ -5,7 +5,12 @@ import type { Deadline,Priority,User,WorkingDayAdjustment,RecurrenceAnchor,Statu
 import { parseRecurrence,recurrenceRule } from "@/lib/deadline";
 import { categoryStyle } from "@/lib/constants";
 
-type Draft={title:string;dueDate:string;startDate?:string;endDate?:string;priority:Priority;status:Status;assigneeId:string;description:string;category:string;recurrence:string;recurrenceAnchor:RecurrenceAnchor;workingDayAdjustment:WorkingDayAdjustment;dependsOnIds:string[];notes:string;waitingFor:string;requireRead:boolean;notifyIds:string[];reminders:number[];links:string[];checklist:{id:string;text:string;done:boolean}[]};
+type Draft={ datePrecision?: "DAY"|"MONTH"|"YEAR";title:string;dueDate:string;startDate?:string;endDate?:string;priority:Priority;status:Status;assigneeId:string;description:string;category:string;recurrence:string;recurrenceAnchor:RecurrenceAnchor;workingDayAdjustment:WorkingDayAdjustment;dependsOnIds:string[];notes:string;waitingFor:string;requireRead:boolean;notifyIds:string[];reminders:number[];links:string[];checklist:{id:string;text:string;done:boolean}[]};
+function monthEnd(ym:string){
+  const [y,m]=ym.split("-").map(Number);
+  return new Date(Date.UTC(y,m,0)).toISOString().slice(0,10);
+}
+
 export function DeadlineForm({open,onClose,onSave,users,categories,deadlines,item}:{open:boolean;onClose:()=>void;onSave:(d:Record<string,unknown>)=>Promise<void>;users:User[];categories:string[];deadlines:Deadline[];item:Deadline|null}){
   const empty=():Draft=>({title:"",dueDate:new Date().toISOString().slice(0,10),priority:"NORMAL",status:"TODO",assigneeId:users.find(u=>u.active)?.id||"",description:"",category:categories[0]||"Altro",recurrence:"NONE",recurrenceAnchor:"DUE_DATE",workingDayAdjustment:"NONE",dependsOnIds:[],notes:"",waitingFor:"",requireRead:false,notifyIds:[],reminders:[1],links:[],checklist:[]});
   const [d,setD]=useState<Draft>(empty),[more,setMore]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
@@ -16,12 +21,13 @@ export function DeadlineForm({open,onClose,onSave,users,categories,deadlines,ite
   const dateType=d.startDate?"RANGE":d.endDate?"DUE_BY":"EXACT";
   const range=dateType==="RANGE";
   const dueBy=dateType==="DUE_BY";
+  const precision=d.datePrecision==="YEAR"?"YEAR":"MONTH";
   async function submit(e:React.FormEvent){e.preventDefault();
   if(range&&(!d.startDate||!d.endDate||d.startDate>d.endDate)){setError("Controlla le date del periodo.");return}
   if(dueBy&&!d.endDate){setError("Indica la data limite.");return}
   setBusy(true);try{
     const due=dateType==="EXACT"?d.dueDate:d.endDate!;
-    await onSave({...d,dueDate:due,startDate:range?d.startDate:item?null:undefined,endDate:dateType==="EXACT"?(item?null:undefined):d.endDate});
+    await onSave({...d,datePrecision:dueBy?precision:"DAY",dueDate:due,startDate:range?d.startDate:item?null:undefined,endDate:dateType==="EXACT"?(item?null:undefined):d.endDate});
     onClose()
   }catch(e){setError((e as Error).message)}finally{setBusy(false)}}
   return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><section className="modal"><header><div><span className="eyebrow">{item?"MODIFICA":"NUOVA SCADENZA"}</span><h2>{item?item.title:"Crea in pochi secondi"}</h2></div><button className="icon-btn" onClick={onClose}><X/></button></header><form onSubmit={submit}>
@@ -29,17 +35,52 @@ export function DeadlineForm({open,onClose,onSave,users,categories,deadlines,ite
     <div className="form-grid">
 <label>Tipo data<select value={dateType} onChange={e=>{
   const v=e.target.value;
-  if(v==="RANGE")setD(x=>({...x,startDate:x.dueDate,endDate:x.dueDate}));
-  else if(v==="DUE_BY")setD(x=>({...x,startDate:undefined,endDate:x.dueDate}));
-  else setD(x=>({...x,startDate:undefined,endDate:undefined}));
+  if(v==="RANGE")setD(x=>({...x,datePrecision:"DAY",startDate:x.dueDate,endDate:x.dueDate}));
+  else if(v==="DUE_BY")setD(x=>{
+    const last=monthEnd(x.dueDate.slice(0,7));
+    return {...x,datePrecision:"MONTH",startDate:undefined,endDate:last,dueDate:last}
+  });
+  else setD(x=>({...x,datePrecision:"DAY",startDate:undefined,endDate:undefined}));
 }}>
 <option value="EXACT">Data precisa</option>
 <option value="DUE_BY">Entro il</option>
 <option value="RANGE">Periodo</option>
 </select></label>
 {range?<><label>Dal<input required type="date" value={d.startDate||""} onChange={e=>set("startDate",e.target.value)}/></label><label>Al<input required type="date" value={d.endDate||""} onChange={e=>set("endDate",e.target.value)}/></label></>
-:dueBy?<label>Entro il<input required type="date" value={d.endDate||d.dueDate} onChange={e=>setD(x=>({...x,endDate:e.target.value,dueDate:e.target.value}))}/><small>Termine ultimo per completare la scadenza.</small></label>
-:<label>Data<input required type="date" value={d.dueDate} onChange={e=>set("dueDate",e.target.value)}/></label>}
+:dueBy?<>
+<label>Precisione
+<select value={precision} onChange={e=>{
+  const v=e.target.value as "MONTH"|"YEAR";
+  if(v==="YEAR"){
+    const y=d.dueDate.slice(0,4);
+    setD(x=>({...x,datePrecision:"YEAR",dueDate:`${y}-12-31`,endDate:`${y}-12-31`}));
+  }else{
+    const last=monthEnd(d.dueDate.slice(0,7));
+    setD(x=>({...x,datePrecision:"MONTH",dueDate:last,endDate:last}));
+  }
+}}>
+<option value="MONTH">Mese</option>
+<option value="YEAR">Anno</option>
+</select>
+</label>
+
+{precision==="MONTH"?
+<label>Entro il mese
+<input required type="month" value={d.dueDate.slice(0,7)} onChange={e=>{
+  const last=monthEnd(e.target.value);
+  setD(x=>({...x,datePrecision:"MONTH",dueDate:last,endDate:last}));
+}}/>
+<small>Esempio: 05/2028. Nessun giorno preciso.</small>
+</label>
+:
+<label>Entro l&apos;anno
+<input required type="number" min="2000" max="2100" value={d.dueDate.slice(0,4)} onChange={e=>{
+  const y=e.target.value;
+  setD(x=>({...x,datePrecision:"YEAR",dueDate:`${y}-12-31`,endDate:`${y}-12-31`}));
+}}/>
+<small>Esempio: 2028. Nessun mese o giorno preciso.</small>
+</label>}
+</>:<label>Data<input required type="date" value={d.dueDate} onChange={e=>set("dueDate",e.target.value)}/></label>}
 </div>
     <div className="form-grid"><label>Priorità<select value={d.priority} onChange={e=>set("priority",e.target.value as Priority)}><option value="NORMAL">Normale</option><option value="IMPORTANT">Importante</option><option value="URGENT">Urgente</option></select></label><label>Responsabile<select value={d.assigneeId} onChange={e=>set("assigneeId",e.target.value)}>{users.filter(u=>u.active).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label><label>Stato<select value={d.status} onChange={e=>set("status",e.target.value as Status)}><option value="TODO">Da fare</option><option value="IN_PROGRESS">In gestione</option><option value="WAITING">In attesa</option><option value="COMPLETED">Completata</option></select></label></div>
     <button type="button" className="more-toggle" onClick={()=>setMore(!more)}>Altre opzioni</button>{more&&<div className="more-fields"><label>Descrizione<textarea value={d.description} onChange={e=>set("description",e.target.value)}/></label><div className="form-grid"><label>Categoria<select value={d.category} style={categoryStyle(d.category)} onChange={e=>set("category",e.target.value)}>{categories.map(c=><option key={c} style={categoryStyle(c)}>{c}</option>)}</select></label><label>In attesa di<input value={d.waitingFor} onChange={e=>set("waitingFor",e.target.value)} placeholder="Studio Inglese, cliente, fornitore…"/></label><label>Se non lavorativo<select value={d.workingDayAdjustment} onChange={e=>set("workingDayAdjustment",e.target.value as WorkingDayAdjustment)}><option value="NONE">Lascia invariata</option><option value="PREVIOUS_WORKDAY">Giorno precedente</option><option value="NEXT_WORKDAY">Giorno successivo</option></select></label></div>

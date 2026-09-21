@@ -60,7 +60,7 @@ async function readPostgres(readOnly=false): Promise<Database> {
     notificationLog: logs.map(x => ({id:x.id,message:x.message,at:x.createdAt.toISOString()})),
     deadlines: deadlines.map(x => ({
       id:x.id,title:x.title,description:x.description,dueDate:x.dueDate.toISOString().slice(0,10),
-      startDate:x.startDate?.toISOString().slice(0,10),endDate:x.endDate?.toISOString().slice(0,10),
+      startDate:x.startDate?.toISOString().slice(0,10),endDate:x.endDate?.toISOString().slice(0,10),datePrecision:(x.datePrecision as "DAY"|"MONTH"|"YEAR")||"DAY",
       dueTime:x.dueTime||undefined,priority:x.priority,status:x.status,category:x.category,
       assigneeId:x.assigneeId,notifyIds:x.notifyIds,recurrence:x.recurrence,reminders:x.reminders,
       recurrenceAnchor:x.recurrenceAnchor as Database["deadlines"][number]["recurrenceAnchor"],workingDayAdjustment:x.workingDayAdjustment as Database["deadlines"][number]["workingDayAdjustment"],dependsOnIds:x.dependsOnIds,
@@ -101,7 +101,7 @@ async function persistPostgres(db: Database) {
     for (const d of db.deadlines) {
       const fields = {
         title:d.title,description:d.description,dueDate:new Date(`${d.dueDate}T12:00:00Z`),
-        startDate:d.startDate?new Date(`${d.startDate}T12:00:00Z`):null,endDate:d.endDate?new Date(`${d.endDate}T12:00:00Z`):null,
+        startDate:d.startDate?new Date(`${d.startDate}T12:00:00Z`):null,endDate:d.endDate?new Date(`${d.endDate}T12:00:00Z`):null,datePrecision:d.datePrecision||"DAY",
         dueTime:d.dueTime,priority:d.priority,status:d.status,category:d.category,
         assigneeId:d.assigneeId,notifyIds:d.notifyIds,recurrence:d.recurrence,reminders:d.reminders,
         recurrenceAnchor:d.recurrenceAnchor||"DUE_DATE",workingDayAdjustment:d.workingDayAdjustment||"NONE",dependsOnIds:d.dependsOnIds||[],

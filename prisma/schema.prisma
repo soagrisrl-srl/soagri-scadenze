@@ -28,86 +28,87 @@ enum Status {
 }
 
 model User {
-  id String @id @default(cuid())
-  name String
-  email String @unique
-  passwordHash String
-  role Role @default(VIEWER)
-  color String @default("#176b45")
-  active Boolean @default(true)
-  canManageEvents Boolean @default(false)
-  assigned DeadLine[] @relation("Assignee")
-  auditLogs AuditLog[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String     @id @default(cuid())
+  name            String
+  email           String     @unique
+  passwordHash    String
+  role            Role       @default(VIEWER)
+  color           String     @default("#176b45")
+  active          Boolean    @default(true)
+  canManageEvents Boolean    @default(false)
+  assigned        DeadLine[] @relation("Assignee")
+  auditLogs       AuditLog[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 }
 
 model DeadLine {
-  id String @id @default(cuid())
-  title String
-  description String @default("")
-  dueDate DateTime
-  startDate DateTime?
-  endDate DateTime?
-  dueTime String?
-  priority Priority @default(NORMAL)
-  status Status @default(TODO)
-  category String
-  assigneeId String
-  assignee User @relation("Assignee", fields: [assigneeId], references: [id])
-  notifyIds String[]
-  recurrence String @default("NONE")
-  recurrenceAnchor String @default("DUE_DATE")
-  workingDayAdjustment String @default("NONE")
-  dependsOnIds String[] @default([])
-  reminders Int[]
-  notes String @default("")
-  waitingFor String @default("")
-  requireRead Boolean @default(false)
-  checklist Json @default("[]")
-  links String[]
-  takenAt DateTime?
-  completedAt DateTime?
-  deletedAt DateTime?
-  archivedAt DateTime?
-  archiveExempt Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  auditLogs AuditLog[]
+  id                   String     @id @default(cuid())
+  title                String
+  description          String     @default("")
+  dueDate              DateTime
+  startDate            DateTime?
+  endDate              DateTime?
+  datePrecision        String     @default("DAY")
+  dueTime              String?
+  priority             Priority   @default(NORMAL)
+  status               Status     @default(TODO)
+  category             String
+  assigneeId           String
+  assignee             User       @relation("Assignee", fields: [assigneeId], references: [id])
+  notifyIds            String[]
+  recurrence           String     @default("NONE")
+  recurrenceAnchor     String     @default("DUE_DATE")
+  workingDayAdjustment String     @default("NONE")
+  dependsOnIds         String[]   @default([])
+  reminders            Int[]
+  notes                String     @default("")
+  waitingFor           String     @default("")
+  requireRead          Boolean    @default(false)
+  checklist            Json       @default("[]")
+  links                String[]
+  takenAt              DateTime?
+  completedAt          DateTime?
+  deletedAt            DateTime?
+  archivedAt           DateTime?
+  archiveExempt        Boolean    @default(false)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  auditLogs            AuditLog[]
 }
 
 model AppSetting {
-  key String @id
+  key   String @id
   value String
 }
 
 model AuditLog {
-  id String @id @default(cuid())
+  id         String   @id @default(cuid())
   deadlineId String
-  deadline DeadLine @relation(fields: [deadlineId], references: [id], onDelete: Cascade)
-  actorId String?
-  actor User? @relation(fields: [actorId], references: [id])
-  action String
-  detail String?
-  createdAt DateTime @default(now())
+  deadline   DeadLine @relation(fields: [deadlineId], references: [id], onDelete: Cascade)
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  detail     String?
+  createdAt  DateTime @default(now())
 }
 
 model PushSubscription {
-  id String @id @default(cuid())
-  userId String
-  endpoint String @unique
-  p256dh String
-  auth String
-  enabled Boolean @default(true)
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  enabled   Boolean  @default(true)
   createdAt DateTime @default(now())
 }
 
 model NotificationLog {
-  id String @id @default(cuid())
-  userId String?
+  id         String   @id @default(cuid())
+  userId     String?
   deadlineId String?
-  channel String
-  status String
-  message String
-  createdAt DateTime @default(now())
+  channel    String
+  status     String
+  message    String
+  createdAt  DateTime @default(now())
 }

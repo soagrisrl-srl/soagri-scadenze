@@ -6,7 +6,7 @@ import { CATEGORIES } from "../constants";
 const date=z.iso.date();
 const checklist=z.array(z.object({id:z.string(),text:z.string(),done:z.boolean()}));
 export const deadlineFields=z.object({
-  title:z.string().trim().min(2),description:z.string(),dueDate:date,startDate:date.optional(),endDate:date.optional(),dueTime:z.string().optional(),
+  title:z.string().trim().min(2),description:z.string(),dueDate:date,startDate:date.optional(),endDate:date.optional(),datePrecision:z.enum(["DAY","MONTH","YEAR"]).default("DAY"),dueTime:z.string().optional(),
   priority:z.enum(["NORMAL","IMPORTANT","URGENT"]),status:z.enum(["TODO","IN_PROGRESS","WAITING","COMPLETED","CANCELLED"]).optional(),
   category:z.string().trim().min(1),assigneeId:z.string(),notifyIds:z.array(z.string()),recurrence:z.string(),
   recurrenceAnchor:z.enum(["DUE_DATE","COMPLETION_DATE"]).optional(),workingDayAdjustment:z.enum(["NONE","PREVIOUS_WORKDAY","NEXT_WORKDAY"]).optional(),

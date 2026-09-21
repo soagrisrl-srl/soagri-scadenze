@@ -17,8 +17,33 @@ function user(db:Database,name:string){const matches=db.users.filter(u=>u.active
 function actor(db:Database){if(process.env.DATABASE_URL&&!value("actor"))throw new Error("In PostgreSQL --actor è obbligatorio");const u=user(db,value("actor")||"Domenico");if(!can(u,"events.manage"))throw new Error(`Permesso negato: ${u.name}`);return u}
 const split=(s:string)=>s.split(",").map(x=>x.trim()).filter(Boolean);
 function recurrence(input:Record<string,unknown>){if(input.recurrence&&typeof input.recurrence==="object"){const r=input.recurrence as Record<string,unknown>;input.recurrence=recurrenceRule(Number(r.every),String(r.unit).toUpperCase() as "DAY"|"WEEK"|"MONTH"|"YEAR");input.recurrenceAnchor=r.anchor||"DUE_DATE"}else if(input.recurrence&&typeof input.recurrence==="string")input.recurrence=input.recurrence.toUpperCase();}
+function applyDueBy(p:Record<string,unknown>){
+  if(p.dueBy===undefined)return;
+  const v=String(p.dueBy).trim();
+
+  if(/^\d{2}\/\d{4}$/.test(v)){
+    const [m,y]=v.split("/").map(Number);
+    if(m<1||m>12)throw new Error("Entro il: mese non valido");
+    const last=new Date(Date.UTC(y,m,0)).toISOString().slice(0,10);
+    p.datePrecision="MONTH";
+    p.dueDate=last;
+    p.endDate=last;
+    p.startDate=undefined;
+  }else if(/^\d{4}$/.test(v)){
+    p.datePrecision="YEAR";
+    p.dueDate=`${v}-12-31`;
+    p.endDate=`${v}-12-31`;
+    p.startDate=undefined;
+  }else{
+    throw new Error('Usa --entro-il MM/YYYY oppure YYYY');
+  }
+
+  delete p.dueBy;
+}
+
 function normalize(db:Database,raw:Record<string,unknown>){const p={...raw};if(p.assignee!==undefined){p.assigneeId=user(db,String(p.assignee)).id;delete p.assignee}if(p.actor!==undefined)delete p.actor;
   if(p.dateRange&&typeof p.dateRange==="object"){const r=p.dateRange as Record<string,unknown>;p.startDate=r.start;p.endDate=r.end;p.dueDate=r.end;delete p.dateRange}
+  applyDueBy(p);
   if(p.endDate&&!p.dueDate)p.dueDate=p.endDate;
   if(p.dependsOn!==undefined){p.dependsOnIds=p.dependsOn;delete p.dependsOn}
   if(p.notify!==undefined){p.notifyIds=p.notify===true?[p.assigneeId]:p.notify===false?[]:(Array.isArray(p.notify)?p.notify:split(String(p.notify))).map(x=>user(db,String(x)).id);delete p.notify}
@@ -26,7 +51,7 @@ function normalize(db:Database,raw:Record<string,unknown>){const p={...raw};if(p
   if(p.workingDayAdjustment==="NEXT")p.workingDayAdjustment="NEXT_WORKDAY";if(p.workingDayAdjustment==="PREVIOUS")p.workingDayAdjustment="PREVIOUS_WORKDAY";
   recurrence(p);return p;
 }
-function fromFlags(db:Database){const fields:Record<string,string>={titolo:"title",descrizione:"description",data:"dueDate","data-da":"startDate","data-a":"endDate",ora:"dueTime",responsabile:"assignee",priorita:"priority",categoria:"category",note:"notes",preavvisi:"reminders",ricorrenza:"recurrence","ricorrenza-da":"recurrenceAnchor","waiting-for":"waitingFor","dipende-da":"dependsOn","giorno-lavorativo":"workingDayAdjustment"};const p:Record<string,unknown>={};for(const [flag,field] of Object.entries(fields))if(value(flag)!==undefined)p[field]=value(flag);if(p.startDate&&p.endDate&&!p.dueDate)p.dueDate=p.endDate;if(p.dependsOn)p.dependsOn=split(String(p.dependsOn));if(has("notify"))p.notify=value("notify")||true;if(has("require-read"))p.requireRead=true;
+function fromFlags(db:Database){const fields:Record<string,string>={titolo:"title",descrizione:"description",data:"dueDate","data-da":"startDate","data-a":"endDate","entro-il":"dueBy",ora:"dueTime",responsabile:"assignee",priorita:"priority",categoria:"category",note:"notes",preavvisi:"reminders",ricorrenza:"recurrence","ricorrenza-da":"recurrenceAnchor","waiting-for":"waitingFor","dipende-da":"dependsOn","giorno-lavorativo":"workingDayAdjustment"};const p:Record<string,unknown>={};for(const [flag,field] of Object.entries(fields))if(value(flag)!==undefined)p[field]=value(flag);applyDueBy(p);if(p.startDate&&p.endDate&&!p.dueDate)p.dueDate=p.endDate;if(p.dependsOn)p.dependsOn=split(String(p.dependsOn));if(has("notify"))p.notify=value("notify")||true;if(has("require-read"))p.requireRead=true;
   if(value("ogni")||value("unita"))p.recurrence=recurrenceRule(Number(required("ogni")),required("unita").toUpperCase() as "DAY"|"WEEK"|"MONTH"|"YEAR");
   return normalize(db,p)}
 function issues(error:unknown){if(error&&typeof error==="object"&&"issues" in error)return (error as {issues:{path:(string|number)[];message:string}[]}).issues.map(i=>`${i.path.join(".")}: ${i.message}`).join("; ");return (error as Error).message}
