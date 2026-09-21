@@ -12,11 +12,35 @@ export function DeadlineForm({open,onClose,onSave,users,categories,deadlines,ite
   useEffect(()=>{if(open){setD(item?{title:item.title,dueDate:item.dueDate,startDate:item.startDate,endDate:item.endDate,priority:item.priority,status:item.status,assigneeId:item.assigneeId,description:item.description,category:item.category,recurrence:item.recurrence,recurrenceAnchor:item.recurrenceAnchor||"DUE_DATE",workingDayAdjustment:item.workingDayAdjustment||"NONE",dependsOnIds:item.dependsOnIds||[],notes:item.notes,waitingFor:item.waitingFor,requireRead:item.requireRead,notifyIds:item.notifyIds,reminders:item.reminders,links:item.links,checklist:item.checklist}:empty());setError("")}},[open,item]);
   if(!open)return null;
   const set=<K extends keyof Draft>(key:K,value:Draft[K])=>setD(x=>({...x,[key]:value}));
-  const recurrence=parseRecurrence(d.recurrence);const range=Boolean(d.startDate||d.endDate);
-  async function submit(e:React.FormEvent){e.preventDefault();if(range&&(!d.startDate||!d.endDate||d.startDate>d.endDate)){setError("Controlla le date del periodo.");return}setBusy(true);try{await onSave({...d,dueDate:range?d.endDate!:d.dueDate,startDate:range?d.startDate:item?null:undefined,endDate:range?d.endDate:item?null:undefined});onClose()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+  const recurrence=parseRecurrence(d.recurrence);
+  const dateType=d.startDate?"RANGE":d.endDate?"DUE_BY":"EXACT";
+  const range=dateType==="RANGE";
+  const dueBy=dateType==="DUE_BY";
+  async function submit(e:React.FormEvent){e.preventDefault();
+  if(range&&(!d.startDate||!d.endDate||d.startDate>d.endDate)){setError("Controlla le date del periodo.");return}
+  if(dueBy&&!d.endDate){setError("Indica la data limite.");return}
+  setBusy(true);try{
+    const due=dateType==="EXACT"?d.dueDate:d.endDate!;
+    await onSave({...d,dueDate:due,startDate:range?d.startDate:item?null:undefined,endDate:dateType==="EXACT"?(item?null:undefined):d.endDate});
+    onClose()
+  }catch(e){setError((e as Error).message)}finally{setBusy(false)}}
   return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><section className="modal"><header><div><span className="eyebrow">{item?"MODIFICA":"NUOVA SCADENZA"}</span><h2>{item?item.title:"Crea in pochi secondi"}</h2></div><button className="icon-btn" onClick={onClose}><X/></button></header><form onSubmit={submit}>
     <label>Titolo<input required autoFocus value={d.title} onChange={e=>set("title",e.target.value)}/></label>
-    <div className="form-grid"><label>Tipo data<select value={range?"RANGE":"EXACT"} onChange={e=>{if(e.target.value==="RANGE")setD(x=>({...x,startDate:x.dueDate,endDate:x.dueDate}));else setD(x=>({...x,startDate:undefined,endDate:undefined}))}}><option value="EXACT">Data precisa</option><option value="RANGE">Periodo</option></select></label>{range?<><label>Dal<input required type="date" value={d.startDate||""} onChange={e=>set("startDate",e.target.value)}/></label><label>Al<input required type="date" value={d.endDate||""} onChange={e=>set("endDate",e.target.value)}/></label></>:<label>Data<input required type="date" value={d.dueDate} onChange={e=>set("dueDate",e.target.value)}/></label>}</div>
+    <div className="form-grid">
+<label>Tipo data<select value={dateType} onChange={e=>{
+  const v=e.target.value;
+  if(v==="RANGE")setD(x=>({...x,startDate:x.dueDate,endDate:x.dueDate}));
+  else if(v==="DUE_BY")setD(x=>({...x,startDate:undefined,endDate:x.dueDate}));
+  else setD(x=>({...x,startDate:undefined,endDate:undefined}));
+}}>
+<option value="EXACT">Data precisa</option>
+<option value="DUE_BY">Entro il</option>
+<option value="RANGE">Periodo</option>
+</select></label>
+{range?<><label>Dal<input required type="date" value={d.startDate||""} onChange={e=>set("startDate",e.target.value)}/></label><label>Al<input required type="date" value={d.endDate||""} onChange={e=>set("endDate",e.target.value)}/></label></>
+:dueBy?<label>Entro il<input required type="date" value={d.endDate||d.dueDate} onChange={e=>setD(x=>({...x,endDate:e.target.value,dueDate:e.target.value}))}/><small>Termine ultimo per completare la scadenza.</small></label>
+:<label>Data<input required type="date" value={d.dueDate} onChange={e=>set("dueDate",e.target.value)}/></label>}
+</div>
     <div className="form-grid"><label>Priorità<select value={d.priority} onChange={e=>set("priority",e.target.value as Priority)}><option value="NORMAL">Normale</option><option value="IMPORTANT">Importante</option><option value="URGENT">Urgente</option></select></label><label>Responsabile<select value={d.assigneeId} onChange={e=>set("assigneeId",e.target.value)}>{users.filter(u=>u.active).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label><label>Stato<select value={d.status} onChange={e=>set("status",e.target.value as Status)}><option value="TODO">Da fare</option><option value="IN_PROGRESS">In gestione</option><option value="WAITING">In attesa</option><option value="COMPLETED">Completata</option></select></label></div>
     <button type="button" className="more-toggle" onClick={()=>setMore(!more)}>Altre opzioni</button>{more&&<div className="more-fields"><label>Descrizione<textarea value={d.description} onChange={e=>set("description",e.target.value)}/></label><div className="form-grid"><label>Categoria<select value={d.category} style={categoryStyle(d.category)} onChange={e=>set("category",e.target.value)}>{categories.map(c=><option key={c} style={categoryStyle(c)}>{c}</option>)}</select></label><label>In attesa di<input value={d.waitingFor} onChange={e=>set("waitingFor",e.target.value)} placeholder="Studio Inglese, cliente, fornitore…"/></label><label>Se non lavorativo<select value={d.workingDayAdjustment} onChange={e=>set("workingDayAdjustment",e.target.value as WorkingDayAdjustment)}><option value="NONE">Lascia invariata</option><option value="PREVIOUS_WORKDAY">Giorno precedente</option><option value="NEXT_WORKDAY">Giorno successivo</option></select></label></div>
       <div className="form-grid"><label>Ricorrenza<select value={recurrence?"REPEAT":"NONE"} onChange={e=>set("recurrence",e.target.value==="NONE"?"NONE":"DAYS:1")}><option value="NONE">Nessuna</option><option value="REPEAT">Ogni N unità</option></select></label>{recurrence&&<><label>Ogni<input type="number" min="1" value={recurrence.every} onChange={e=>set("recurrence",recurrenceRule(Number(e.target.value)||1,recurrence.unit))}/></label><label>Unità<select value={recurrence.unit} onChange={e=>set("recurrence",recurrenceRule(recurrence.every,e.target.value as "DAY"|"WEEK"|"MONTH"|"YEAR"))}><option value="DAY">Giorni</option><option value="WEEK">Settimane</option><option value="MONTH">Mesi</option><option value="YEAR">Anni</option></select></label></>}</div>
