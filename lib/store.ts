@@ -118,7 +118,7 @@ async function persistPostgres(db: Database) {
         });
       }
     }
-  });
+  }, { maxWait: 10000, timeout: 120000 });
 }
 
 export async function updateDb<T>(fn: (db: Database) => T | Promise<T>): Promise<T> {
