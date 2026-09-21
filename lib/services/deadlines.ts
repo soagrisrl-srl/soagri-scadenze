@@ -13,7 +13,7 @@ export const deadlineFields=z.object({
   dependsOnIds:z.array(z.string()).optional(),reminders:z.array(z.number().int().min(0)),notes:z.string(),waitingFor:z.string(),
   requireRead:z.boolean(),checklist,links:z.array(z.string())
 }).strict();
-export const createFields=deadlineFields.extend({description:z.string().default(""),priority:z.enum(["NORMAL","IMPORTANT","URGENT"]).default("NORMAL"),category:z.string().trim().min(1).default(CATEGORIES[0]),notifyIds:z.array(z.string()).default([]),recurrence:z.string().default("NONE"),reminders:z.array(z.number().int().min(0)).default([1]),notes:z.string().default(""),waitingFor:z.string().default(""),requireRead:z.boolean().default(false),checklist:checklist.default([]),links:z.array(z.string()).default([])});
+export const createFields=deadlineFields.extend({description:z.string().default(""),priority:z.enum(["NORMAL","IMPORTANT","URGENT"]).default("NORMAL"),category:z.string().trim().min(1).default(CATEGORIES[0]),notifyIds:z.array(z.string()).default([]),recurrence:z.string().default("NONE"),dependsOnIds:z.array(z.string()).default([]),reminders:z.array(z.number().int().min(0)).default([1]),notes:z.string().default(""),waitingFor:z.string().default(""),requireRead:z.boolean().default(false),checklist:checklist.default([]),links:z.array(z.string()).default([])});
 export const updateFields=deadlineFields.partial().extend({startDate:date.nullable().optional(),endDate:date.nullable().optional(),action:z.enum(["take","complete","delete","restore","postpone","reopen","archive","unarchive"]).optional(),confirmDependencies:z.boolean().optional()}).strict();
 export type CreateInput=z.input<typeof createFields>;
 export type UpdateInput=z.input<typeof updateFields>;
@@ -21,12 +21,17 @@ export type UpdateInput=z.input<typeof updateFields>;
 function validateDates(d:Pick<Deadline,"dueDate"|"startDate"|"endDate">){if(Boolean(d.startDate)!==Boolean(d.endDate)||d.startDate&&d.endDate&&d.startDate>d.endDate||d.endDate&&d.dueDate!==d.endDate)throw new Error("INVALID_DATE_RANGE")}
 function validateDependencies(db:Database,id:string,ids:string[]){if(ids.includes(id))throw new Error("SELF_DEPENDENCY");if(ids.some(x=>!db.deadlines.some(d=>d.id===x&&!d.deletedAt)))throw new Error("INVALID_DEPENDENCY");const visit=(node:string,seen:Set<string>):boolean=>{if(node===id)return true;if(seen.has(node))return false;seen.add(node);return (db.deadlines.find(d=>d.id===node)?.dependsOnIds||[]).some(x=>visit(x,seen))};if(ids.some(x=>visit(x,new Set())))throw new Error("CYCLIC_DEPENDENCY")}
 function validate(db:Database,d:Deadline){if(!db.users.some(u=>u.id===d.assigneeId&&u.active))throw new Error("INVALID_ASSIGNEE");if(d.recurrence!=="NONE"&&!parseRecurrence(d.recurrence))throw new Error("INVALID_RECURRENCE");validateDates(d);validateDependencies(db,d.id,d.dependsOnIds||[])}
-export function unresolvedDependencies(db:Database,d:Deadline){return (d.dependsOnIds||[]).map(id=>db.deadlines.find(x=>x.id===id)).filter((x):x is Deadline=>Boolean(x&&x.status!=="COMPLETED"))}
+export function unresolvedDependencies(db:Database,d:Deadline){return (d.dependsOnIds||[]).map(id=>db.deadlines.find(x=>x.id===id)).filter((x):x is Deadline=>Boolean(x&&!x.deletedAt&&x.status!=="COMPLETED"))}
 export function createDeadline(db:Database,input:CreateInput,actor:User,source="WEB"){const p=createFields.parse(input);const now=new Date().toISOString();const d:Deadline={...p,id:crypto.randomUUID(),status:p.status||"TODO",completedAt:p.status==="COMPLETED"?now:undefined,createdAt:now,updatedAt:now,audits:[{id:crypto.randomUUID(),at:now,actor:actor.name,action:"Creazione",detail:source}]};validate(db,d);db.deadlines.push(d);return d}
 export function updateDeadline(db:Database,id:string,input:UpdateInput,actor:User,source="WEB"){
   const p=updateFields.parse(input);const d=db.deadlines.find(x=>x.id===id);if(!d)throw new Error("NOT_FOUND");
   const now=new Date().toISOString();const {action,confirmDependencies,...rest}=p;const effectiveAction=action||(p.status==="COMPLETED"&&d.status!=="COMPLETED"?"complete":undefined);
-  const next={...d,...rest,startDate:rest.startDate===null?undefined:rest.startDate??d.startDate,endDate:rest.endDate===null?undefined:rest.endDate??d.endDate};validate(db,next);
+  const requestedDepends=rest.dependsOnIds??d.dependsOnIds??[];
+  const existingDepends=new Set(d.dependsOnIds||[]);
+  const invalidNew=requestedDepends.filter(depId=>!existingDepends.has(depId)&&!db.deadlines.some(x=>x.id===depId&&!x.deletedAt));
+  if(invalidNew.length)throw new Error("INVALID_DEPENDENCY");
+  const cleanedDepends=requestedDepends.filter(depId=>db.deadlines.some(x=>x.id===depId&&!x.deletedAt));
+  const next={...d,...rest,dependsOnIds:cleanedDepends,startDate:rest.startDate===null?undefined:rest.startDate??d.startDate,endDate:rest.endDate===null?undefined:rest.endDate??d.endDate};validate(db,next);
   if(effectiveAction==="complete"&&unresolvedDependencies(db,next).length&&!confirmDependencies)throw new Error("DEPENDENCIES_INCOMPLETE");
   let audit="Modifica";
   if(action==="take"){next.status="IN_PROGRESS";next.assigneeId=actor.id;next.takenAt=now;audit="Presa in carico"}
@@ -40,7 +45,16 @@ export function updateDeadline(db:Database,id:string,input:UpdateInput,actor:Use
       }
     }
   }
-  if(action==="delete"){next.deletedAt=now;audit="Spostamento nel cestino"}
+  if(action==="delete"){
+    next.deletedAt=now;
+    for(const other of db.deadlines){
+      if(other.id!==id&&other.dependsOnIds?.includes(id)){
+        other.dependsOnIds=other.dependsOnIds.filter(depId=>depId!==id);
+        other.updatedAt=now;
+      }
+    }
+    audit="Spostamento nel cestino"
+  }
   if(action==="restore"){next.deletedAt=undefined;audit="Ripristino"}
   if(action==="reopen"){next.status="TODO";next.completedAt=undefined;next.archivedAt=undefined;audit="Riapertura"}
   if(action==="postpone")audit="Rimandata";
