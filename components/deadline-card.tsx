@@ -1,7 +1,54 @@
-"use client";import { CalendarDays,Check,Clock3,Hand,MoreHorizontal,RotateCcw,Trash2,UserRound } from "lucide-react";import { format,parseISO,differenceInCalendarDays } from "date-fns";import { it } from "date-fns/locale";import type { Deadline,User } from "@/types";import { PRIORITY_LABEL,STATUS_LABEL,categoryStyle } from "@/lib/constants";import { urgency } from "@/lib/deadline";
-export function DeadlineCard({item,users,canEdit,onAction,onEdit,compact=false,deadlines=[]}:{item:Deadline;users:User[];deadlines?:Deadline[];canEdit:boolean;onAction:(id:string,body:object)=>void;onEdit:(d:Deadline)=>void;compact?:boolean}){const u=urgency(item.dueDate),days=differenceInCalendarDays(parseISO(item.dueDate),new Date()),who=users.find(x=>x.id===item.assigneeId)?.name||"Da assegnare",done=item.checklist.filter(x=>x.done).length;return <article className={`deadline-card urgency-${u} ${compact?"compact":""}`}><div className="urgency-bar"/><div className="deadline-main"><div className="deadline-top"><div><div className="badges"><span className={`priority p-${item.priority.toLowerCase()}`}>{PRIORITY_LABEL[item.priority]}</span><span className="category" style={categoryStyle(item.category)}>{item.category}</span>{item.status!=="TODO"&&<span className="status">{STATUS_LABEL[item.status]}</span>}</div><h3>{item.title}</h3></div>{canEdit&&<button className="icon-btn" aria-label="Modifica" onClick={()=>onEdit(item)}><MoreHorizontal/></button>}</div><div className="meta"><span><CalendarDays/>{item.startDate?`${format(parseISO(item.startDate),"d MMM",{locale:it})}–${format(parseISO(item.endDate||item.dueDate),"d MMM yyyy",{locale:it})}`:item.endDate?
-  (item.datePrecision==="YEAR"
-    ?`Entro ${format(parseISO(item.endDate),"yyyy",{locale:it})}`
-    :item.datePrecision==="MONTH"
-      ?`Entro ${format(parseISO(item.endDate),"MM/yyyy",{locale:it})}`
-      :`Entro il ${format(parseISO(item.endDate),"d MMM yyyy",{locale:it})}`):format(parseISO(item.dueDate),"EEE d MMM",{locale:it})} · {days<0?`${Math.abs(days)} gg fa`:days===0?"oggi":`tra ${days} gg`}</span><span><UserRound/>{who}</span>{item.waitingFor&&<span><Clock3/>Attesa: {item.waitingFor}</span>}{Boolean(item.dependsOnIds?.length)&&<span><Hand/>Dipende da: {item.dependsOnIds!.map(id=>deadlines.find(d=>d.id===id)?.title||id).join(", ")}</span>}{item.checklist.length>0&&<span><Check/>{done}/{item.checklist.length} completate</span>}</div>{!compact&&canEdit&&<div className="quick-actions">{item.status==="TODO"&&<button onClick={()=>onAction(item.id,{action:"take"})}><Hand/>Me ne occupo io</button>}<button onClick={()=>onAction(item.id,{action:"postpone",dueDate:format(new Date(Date.now()+86400000),"yyyy-MM-dd")})}><RotateCcw/>Rimanda</button><button className="done" onClick={()=>onAction(item.id,{action:"complete"})}><Check/>Fatto</button><button className="danger-ghost" aria-label="Elimina" onClick={()=>onAction(item.id,{action:"delete"})}><Trash2/></button></div>}</div></article>}
+"use client";
+
+import { useState } from "react";
+import { CalendarDays,Check,Clock3,Hand,MoreHorizontal,RotateCcw,Trash2,UserRound } from "lucide-react";
+import { format,parseISO,differenceInCalendarDays } from "date-fns";
+import { it } from "date-fns/locale";
+import type { Deadline,User } from "@/types";
+import { PRIORITY_LABEL,STATUS_LABEL,categoryStyle } from "@/lib/constants";
+import { urgency } from "@/lib/deadline";
+
+export function DeadlineCard({item,users,canEdit,onAction,onEdit,compact=false,deadlines=[]}:{item:Deadline;users:User[];deadlines?:Deadline[];canEdit:boolean;onAction:(id:string,body:object)=>void;onEdit:(d:Deadline)=>void;compact?:boolean}){
+const [expanded,setExpanded]=useState(false);
+const u=urgency(item.dueDate);
+const days=differenceInCalendarDays(parseISO(item.dueDate),new Date());
+const who=users.find(x=>x.id===item.assigneeId)?.name||"Da assegnare";
+const done=item.checklist.filter(x=>x.done).length;
+const description=item.description?.trim()||"";
+const notes=item.notes?.trim()||"";
+const longText=(description.length+notes.length)>220;
+
+return <article className={`deadline-card urgency-${u} ${compact?"compact":""}`}>
+<div className="urgency-bar"/>
+<div className="deadline-main">
+<div className="deadline-top"><div><div className="badges">
+<span className={`priority p-${item.priority.toLowerCase()}`}>{PRIORITY_LABEL[item.priority]}</span>
+<span className="category" style={categoryStyle(item.category)}>{item.category}</span>
+{item.status!=="TODO"&&<span className="status">{STATUS_LABEL[item.status]}</span>}
+</div><h3>{item.title}</h3></div>
+{canEdit&&<button className="icon-btn" aria-label="Modifica" onClick={()=>onEdit(item)}><MoreHorizontal/></button>}
+</div>
+
+<div className="meta">
+<span><CalendarDays/>{item.startDate?`${format(parseISO(item.startDate),"d MMM",{locale:it})}–${format(parseISO(item.endDate||item.dueDate),"d MMM yyyy",{locale:it})}`:item.endDate?(item.datePrecision==="YEAR"?`Entro ${format(parseISO(item.endDate),"yyyy",{locale:it})}`:item.datePrecision==="MONTH"?`Entro ${format(parseISO(item.endDate),"MM/yyyy",{locale:it})}`:`Entro il ${format(parseISO(item.endDate),"d MMM yyyy",{locale:it})}`):format(parseISO(item.dueDate),"EEE d MMM",{locale:it})} · {days<0?`${Math.abs(days)} gg fa`:days===0?"oggi":`tra ${days} gg`}</span>
+<span><UserRound/>{who}</span>
+{item.waitingFor&&<span><Clock3/>Attesa: {item.waitingFor}</span>}
+{Boolean(item.dependsOnIds?.length)&&<span><Hand/>Dipende da: {item.dependsOnIds!.map(id=>deadlines.find(d=>d.id===id)?.title||id).join(", ")}</span>}
+{item.checklist.length>0&&<span><Check/>{done}/{item.checklist.length} completate</span>}
+</div>
+
+{!compact&&(description||notes)&&<div className="deadline-card-copy">
+{description&&<div><b>Descrizione</b><p className={!expanded&&longText?"text-clamp":""}>{description}</p></div>}
+{notes&&<div className="deadline-note"><b>Nota</b><p className={!expanded&&longText?"text-clamp":""}>{notes}</p></div>}
+{longText&&<button type="button" className="card-copy-toggle" onClick={()=>setExpanded(x=>!x)}>{expanded?"Mostra meno":"Mostra altro"}</button>}
+</div>}
+
+{!compact&&canEdit&&<div className="quick-actions">
+{item.status==="TODO"&&<button onClick={()=>onAction(item.id,{action:"take"})}><Hand/>Me ne occupo io</button>}
+<button onClick={()=>onAction(item.id,{action:"postpone",dueDate:format(new Date(Date.now()+86400000),"yyyy-MM-dd")})}><RotateCcw/>Rimanda</button>
+<button className="done" onClick={()=>onAction(item.id,{action:"complete"})}><Check/>Fatto</button>
+<button className="danger-ghost" aria-label="Elimina" onClick={()=>onAction(item.id,{action:"delete"})}><Trash2/></button>
+</div>}
+</div>
+</article>
+}

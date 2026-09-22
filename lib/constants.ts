@@ -1,4 +1,4 @@
-export const CATEGORIES=["Amministrazione","Assicurazioni","Automezzi","Certificazioni","Contratti","Fiscale","Pagamenti","Personale","Sicurezza","Agricoltura / Campagne","Granaio Italia / SIAN","Macchinari","Manutenzioni","Bandi / Finanziamenti","Clienti / Fornitori","Altro"];
+export const CATEGORIES=["Amministrazione","Assicurazioni","Automezzi","Revisioni e manutenzioni","Bolli e tributi","Patenti","Licenze e autorizzazioni","Certificazioni","Contratti","Fiscale","Pagamenti","Personale","Sicurezza","Sicurezza e impianti","Agricoltura / Campagne","Granaio Italia / SIAN","Macchinari","Manutenzioni","Bandi / Finanziamenti","Clienti / Fornitori","Altro"];
 
 export const CATEGORY_COLORS:Record<string,{backgroundColor:string;color:string;borderColor:string}>={
   "Amministrazione":{backgroundColor:"#e8f1ff",color:"#245a9b",borderColor:"#b8d2f3"},

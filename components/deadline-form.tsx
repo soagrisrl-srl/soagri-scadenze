@@ -12,7 +12,7 @@ function monthEnd(ym:string){
 }
 
 export function DeadlineForm({open,onClose,onSave,users,categories,deadlines,item}:{open:boolean;onClose:()=>void;onSave:(d:Record<string,unknown>)=>Promise<void>;users:User[];categories:string[];deadlines:Deadline[];item:Deadline|null}){
-  const empty=():Draft=>({title:"",dueDate:new Date().toISOString().slice(0,10),priority:"NORMAL",status:"TODO",assigneeId:users.find(u=>u.active)?.id||"",description:"",category:categories[0]||"Altro",recurrence:"NONE",recurrenceAnchor:"DUE_DATE",workingDayAdjustment:"NONE",dependsOnIds:[],notes:"",waitingFor:"",requireRead:false,notifyIds:[],reminders:[1],links:[],checklist:[]});
+  const empty=():Draft=>({title:"",dueDate:new Date().toISOString().slice(0,10),priority:"NORMAL",status:"TODO",assigneeId:users.find(u=>u.active)?.id||"",description:"",category:categories[0]||"Altro",recurrence:"NONE",recurrenceAnchor:"DUE_DATE",workingDayAdjustment:"NONE",dependsOnIds:[],notes:"",waitingFor:"",requireRead:false,notifyIds:users.filter(u=>u.active).map(u=>u.id),reminders:[1],links:[],checklist:[]});
   const [d,setD]=useState<Draft>(empty),[more,setMore]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
   useEffect(()=>{if(open){setD(item?{title:item.title,dueDate:item.dueDate,startDate:item.startDate,endDate:item.endDate,priority:item.priority,status:item.status,assigneeId:item.assigneeId,description:item.description,category:item.category,recurrence:item.recurrence,recurrenceAnchor:item.recurrenceAnchor||"DUE_DATE",workingDayAdjustment:item.workingDayAdjustment||"NONE",dependsOnIds:item.dependsOnIds||[],notes:item.notes,waitingFor:item.waitingFor,requireRead:item.requireRead,notifyIds:item.notifyIds,reminders:item.reminders,links:item.links,checklist:item.checklist}:empty());setError("")}},[open,item]);
   if(!open)return null;
@@ -136,7 +136,23 @@ export function DeadlineForm({open,onClose,onSave,users,categories,deadlines,ite
           </button>
         }
       </div>
-      <label>Note<textarea value={d.notes} onChange={e=>set("notes",e.target.value)}/></label><label>Preavvisi (giorni, separati da virgola)<input value={d.reminders.join(",")} onChange={e=>set("reminders",e.target.value.split(",").map(Number).filter(Number.isFinite))}/></label><label className="check"><input type="checkbox" checked={d.requireRead} onChange={e=>set("requireRead",e.target.checked)}/>Richiedi conferma lettura</label>
+      <div className="notify-editor">
+<div className="notify-editor-head">
+<div><b>Notifiche</b><small>Utenti che riceveranno i promemoria sui propri dispositivi.</small></div>
+<div className="notify-editor-actions">
+<button type="button" onClick={()=>set("notifyIds",users.filter(u=>u.active).map(u=>u.id))}>Tutti</button>
+<button type="button" onClick={()=>set("notifyIds",[])}>Nessuno</button>
+</div>
+</div>
+<div className="notify-users">
+{users.filter(u=>u.active).map(user=><label className="notify-user" key={user.id}>
+<input type="checkbox" checked={d.notifyIds.includes(user.id)} onChange={e=>set("notifyIds",e.target.checked?[...new Set([...d.notifyIds,user.id])]:d.notifyIds.filter(id=>id!==user.id))}/>
+<span className="notify-user-dot" style={{background:user.color}}/>
+<span>{user.name}</span>
+</label>)}
+</div>
+</div>
+<label>Note<textarea value={d.notes} onChange={e=>set("notes",e.target.value)}/></label><label>Preavvisi (giorni, separati da virgola)<input value={d.reminders.join(",")} onChange={e=>set("reminders",e.target.value.split(",").map(Number).filter(Number.isFinite))}/></label><label className="check"><input type="checkbox" checked={d.requireRead} onChange={e=>set("requireRead",e.target.checked)}/>Richiedi conferma lettura</label>
       <div className="checklist-editor"><b>Checklist</b>{d.checklist.map((x,i)=><div key={x.id}><input value={x.text} onChange={e=>set("checklist",d.checklist.map((c,j)=>j===i?{...c,text:e.target.value}:c))}/><button type="button" onClick={()=>set("checklist",d.checklist.filter((_,j)=>j!==i))}><Trash2/></button></div>)}<button type="button" onClick={()=>set("checklist",[...d.checklist,{id:crypto.randomUUID(),text:"",done:false}])}><Plus/>Aggiungi voce</button></div></div>}
     {error&&<p className="form-error">{error}</p>}<footer><button type="button" className="secondary" onClick={onClose}>Annulla</button><button className="primary" disabled={busy}>{busy?"Salvataggio…":item?"Salva modifiche":"Crea scadenza"}</button></footer>
   </form></section></div>
