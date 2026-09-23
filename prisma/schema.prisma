@@ -100,7 +100,16 @@ model PushSubscription {
   p256dh    String
   auth      String
   enabled   Boolean  @default(true)
-  createdAt DateTime @default(now())
+  deviceName      String?
+  platform        String?
+  browser         String?
+  userAgent       String?
+  lastSeenAt      DateTime  @default(now())
+  lastPushAt      DateTime?
+  lastReceivedAt  DateTime?
+  lastDisplayedAt DateTime?
+  lastError       String?
+  createdAt       DateTime  @default(now())
 }
 
 model NotificationLog {

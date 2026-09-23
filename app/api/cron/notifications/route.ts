@@ -1,8 +1,6 @@
-import { createHash } from "node:crypto";
-import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendPushToUsers } from "@/lib/push";
+import { dispatchPush } from "@/lib/push";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -17,8 +15,11 @@ function todayRome(){
 }
 
 function dayNumber(value:string){
-  const [y,m,d]=value.split("-").map(Number);
-  return Math.floor(Date.UTC(y,m-1,d)/86400000);
+  const [year,month,day]=value.split("-").map(Number);
+
+  return Math.floor(
+    Date.UTC(year,month-1,day)/86400000
+  );
 }
 
 function reminderText(days:number){
@@ -27,24 +28,23 @@ function reminderText(days:number){
   return `Scade tra ${days} giorni`;
 }
 
-function notificationId(deadlineId:string,userId:string,due:string,days:number){
-  return "push_"+createHash("sha256")
-    .update(`${deadlineId}|${userId}|${due}|${days}`)
-    .digest("hex")
-    .slice(0,40);
-}
-
 export async function GET(req:Request){
   const secret=process.env.CRON_SECRET;
   const authorization=req.headers.get("authorization");
 
-  if(!secret||authorization!==`Bearer ${secret}`){
-    return NextResponse.json({error:"Non autorizzato"},{status:401});
+  if(
+    !secret||
+    authorization!==`Bearer ${secret}`
+  ){
+    return NextResponse.json(
+      {error:"Non autorizzato"},
+      {status:401}
+    );
   }
 
   const today=todayRome();
 
-  const [deadlines,activeUsers]=await Promise.all([
+  const [deadlines,users]=await Promise.all([
     prisma.deadLine.findMany(),
     prisma.user.findMany({
       where:{active:true},
@@ -52,12 +52,13 @@ export async function GET(req:Request){
     })
   ]);
 
-  const activeIds=new Set(activeUsers.map(u=>u.id));
+  const activeIds=new Set(users.map(user=>user.id));
 
   let checked=0;
-  let sent=0;
-  let skipped=0;
+  let accepted=0;
+  let noDevice=0;
   let failed=0;
+  let skipped=0;
 
   for(const deadline of deadlines){
     if(deadline.deletedAt||deadline.archivedAt)continue;
@@ -68,64 +69,59 @@ export async function GET(req:Request){
 
     if(!deadline.reminders.includes(days))continue;
 
-    const recipients=[...new Set(deadline.notifyIds)]
-      .filter(id=>activeIds.has(id));
+    const recipients=[
+      ...new Set(deadline.notifyIds)
+    ].filter(id=>activeIds.has(id));
 
     if(!recipients.length)continue;
 
     checked++;
 
+    const channel=`PUSH_REMINDER:${due}:${days}`;
+
     for(const userId of recipients){
-      const id=notificationId(deadline.id,userId,due,days);
-
-      try{
-        await prisma.notificationLog.create({
-          data:{
-            id,
-            userId,
+      const alreadyDelivered=
+        await prisma.notificationLog.findFirst({
+          where:{
             deadlineId:deadline.id,
-            channel:"PUSH_REMINDER",
-            status:"PROCESSING",
-            message:`${deadline.title} — ${reminderText(days)}`
+            userId,
+            channel,
+            status:{
+              in:[
+                "ACCEPTED",
+                "RECEIVED",
+                "DISPLAYED"
+              ]
+            }
           }
         });
-      }catch(error){
-        if(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==="P2002"){
-          skipped++;
-          continue;
-        }
-        throw error;
+
+      if(alreadyDelivered){
+        skipped++;
+        continue;
       }
 
-      try{
-        const [result]=await sendPushToUsers([userId],{
-          title:`So.Agri — ${deadline.title}`,
-          body:`${reminderText(days)} · ${deadline.category}`,
-          url:"/",
-          tag:`deadline-${deadline.id}-${due}-${days}`
-        });
+      const results=await dispatchPush({
+        userIds:[userId],
+        deadlineId:deadline.id,
+        channel,
+        title:`So.Agri — ${deadline.title}`,
+        body:`${reminderText(days)} · ${deadline.category}`,
+        url:"/",
+        tag:`deadline-${deadline.id}-${due}-${days}`
+      });
 
-        const delivered=result?.sent||0;
-        sent+=delivered;
+      accepted+=results.filter(
+        result=>result.status==="ACCEPTED"
+      ).length;
 
-        await prisma.notificationLog.update({
-          where:{id},
-          data:{
-            status:delivered>0?"SENT":"NO_DEVICE",
-            message:`${deadline.title} — ${reminderText(days)}`
-          }
-        });
-      }catch(error){
-        failed++;
+      noDevice+=results.filter(
+        result=>result.status==="NO_DEVICE"
+      ).length;
 
-        await prisma.notificationLog.update({
-          where:{id},
-          data:{
-            status:"FAILED",
-            message:`${deadline.title} — ${(error as Error).message}`
-          }
-        });
-      }
+      failed+=results.filter(
+        result=>["FAILED","EXPIRED"].includes(result.status)
+      ).length;
     }
   }
 
@@ -133,8 +129,9 @@ export async function GET(req:Request){
     ok:true,
     date:today,
     checked,
-    sent,
-    skipped,
-    failed
+    accepted,
+    noDevice,
+    failed,
+    skipped
   });
 }
